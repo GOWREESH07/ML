@@ -1,0 +1,89 @@
+{
+  "disclaimer": "This is not a medical diagnosis or treatment recommendation. Consult a qualified neurologist or oncologist.",
+  "glioma": {
+    "name": "Glioma",
+    "description": "Gliomas are primary brain tumors that originate in the glial support cells (astrocytes, oligodendrocytes, or ependymal cells) of the central nervous system. They vary widely in their growth rate, infiltration pattern, and histological characteristics.",
+    "general_symptom_patterns": [
+      "Persistent, worsening headaches often more pronounced upon waking",
+      "New-onset focal or generalized seizures",
+      "Gradual cognitive, personality, or memory changes",
+      "Focal neurological deficits such as motor weakness, numbness, or speech difficulty depending on anatomical location"
+    ],
+    "associated_conditions": [
+      "Elevated intracranial pressure (papilledema, nausea, vomiting)",
+      "Neurogenetic predispositions (e.g., neurofibromatosis types 1 and 2, Li-Fraumeni syndrome)",
+      "Peritumoral cerebral edema"
+    ],
+    "general_lifestyle_notes": [
+      "Maintain a regular sleep schedule and consistent rest periods",
+      "Implement seizure safety precautions if advised by the healthcare team (e.g., avoiding swimming alone, cooking precautions)",
+      "Coordinate with cognitive and physical rehabilitation specialists",
+      "Stay well-hydrated and follow nutritional guidance provided by licensed dietitians"
+    ],
+    "disclaimer": "This is not a medical diagnosis or treatment recommendation. Consult a qualified neurologist or oncologist."
+  },
+  "meningioma": {
+    "name": "Meningioma",
+    "description": "Meningiomas are typically slow-growing tumors arising from the meninges—the protective membranous layers surrounding the brain and spinal cord. The vast majority are benign, though their mass effect on neighboring neural tissue can cause symptoms.",
+    "general_symptom_patterns": [
+      "Gradual headaches developing over months or years",
+      "Visual disturbances such as blurred vision or visual field cutoffs if near the optic pathways",
+      "Hearing loss, tinnitus, or balance instability for skull-base meningiomas",
+      "Focal weakness, numbness, or mild sensory changes"
+    ],
+    "associated_conditions": [
+      "Prior therapeutic ionizing cranial radiation exposure",
+      "Neurofibromatosis type 2 (NF2 genetic alterations)",
+      "Hormonal sensitivities (e.g., progesterone receptor expression)"
+    ],
+    "general_lifestyle_notes": [
+      "Keep regular neuro-imaging surveillance intervals as outlined by the care team",
+      "Maintain gentle, low-impact physical exercise routines suited to balance capabilities",
+      "Adopt fall prevention strategies at home if equilibrium is affected",
+      "Engage in stress reduction practices such as guided meditation and gentle stretching"
+    ],
+    "disclaimer": "This is not a medical diagnosis or treatment recommendation. Consult a qualified neurologist or oncologist."
+  },
+  "notumor": {
+    "name": "No Tumor Detected",
+    "description": "The MRI slice demonstrates normal neuroanatomical structures without apparent evidence of intracranial mass lesions, abnormal focal parenchymal masses, or significant midline shift within the analyzed plane.",
+    "general_symptom_patterns": [
+      "If symptoms prompted the scan (such as headaches, dizziness, or sensory changes), potential non-neoplastic causes may include vascular, tension, metabolic, or cervical etiology",
+      "Absence of tumor on a single MRI slice does not eliminate non-structural or systemic neurological conditions"
+    ],
+    "associated_conditions": [
+      "Tension-type headaches, migraine variants, or sinus pressure",
+      "Stress, sleep deprivation, or neck strain",
+      "Benign positional vertigo or transient inner ear disturbance"
+    ],
+    "general_lifestyle_notes": [
+      "Maintain optimal sleep hygiene, consistent hydration, and balanced nutrition",
+      "Practice ergonomic posture during desk work and digital screen use",
+      "Keep a symptom log (trigger tracking for headaches or lightheadedness)",
+      "Follow up with your primary physician or neurologist if unexplained symptoms persist"
+    ],
+    "disclaimer": "This is not a medical diagnosis or treatment recommendation. Consult a qualified neurologist or oncologist."
+  },
+  "pituitary": {
+    "name": "Pituitary Tumor",
+    "description": "Pituitary tumors (commonly pituitary adenomas) develop within the sella turcica at the base of the skull. Most are non-cancerous and can be secretory (hormone-producing) or non-secretory, producing symptoms through mass effect or endocrine alteration.",
+    "general_symptom_patterns": [
+      "Bitemporal hemianopsia (loss of outer peripheral vision) due to compression of the optic chiasm",
+      "Recurrent frontal headaches",
+      "Endocrine-related shifts such as unexplained fatigue, temperature intolerance, or menstrual irregularities",
+      "Unexplained weight changes or sleep disruption"
+    ],
+    "associated_conditions": [
+      "Multiple Endocrine Neoplasia type 1 (MEN1)",
+      "Secondary hypopituitarism or hyperpituitarism",
+      "Optic nerve chiasm compression syndrome"
+    ],
+    "general_lifestyle_notes": [
+      "Schedule comprehensive periodic visual field evaluations by an ophthalmologist",
+      "Monitor energy levels, hydration, and sleep consistency",
+      "Maintain open communication with an endocrinology and neurosurgical specialist team",
+      "Carry medical identification information if endocrine surveillance is ongoing"
+    ],
+    "disclaimer": "This is not a medical diagnosis or treatment recommendation. Consult a qualified neurologist or oncologist."
+  }
+}
