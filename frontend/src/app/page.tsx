@@ -1,193 +1,240 @@
-"use client";
-
-import React, { useState, useEffect } from "react";
+import React from "react";
+import Link from "next/link";
 import { DisclaimerBanner } from "@/components/DisclaimerBanner";
-import { Header } from "@/components/Header";
-import { UploadSection } from "@/components/UploadSection";
-import { ResultsSection } from "@/components/ResultsSection";
-import { PredictionResult, BackendHealth } from "@/types";
-import { ShieldAlert, AlertCircle, Sparkles, BrainCircuit, Activity } from "lucide-react";
+import {
+  Brain,
+  ShieldCheck,
+  Eye,
+  Activity,
+  ArrowRight,
+  Sparkles,
+  Layers,
+  FileCheck2,
+  Lock,
+  Stethoscope
+} from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-export default function Home() {
-  const [health, setHealth] = useState<BackendHealth | null>(null);
-  const [healthError, setHealthError] = useState<boolean>(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [result, setResult] = useState<PredictionResult | null>(null);
-  const [qualityGateError, setQualityGateError] = useState<string | null>(null);
-  const [generalError, setGeneralError] = useState<string | null>(null);
-
-  // Poll backend health
-  useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/health`);
-        if (!res.ok) throw new Error("Health check failed");
-        const data = await res.json();
-        setHealth(data);
-        setHealthError(false);
-      } catch {
-        setHealthError(true);
-      }
-    };
-    checkHealth();
-    const timer = setInterval(checkHealth, 15000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const handleSelectFile = (file: File | null) => {
-    setSelectedFile(file);
-    setQualityGateError(null);
-    setGeneralError(null);
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setOriginalImageUrl(url);
-    } else {
-      setOriginalImageUrl(null);
-      setResult(null);
-    }
-  };
-
-  const handleAnalyze = async (file: File) => {
-    setIsLoading(true);
-    setQualityGateError(null);
-    setGeneralError(null);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch(`${API_BASE}/predict`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (res.status === 422) {
-        const errorData = await res.json();
-        setQualityGateError(errorData.detail || "Image rejected by MRI Quality Gate.");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Inference error: HTTP ${res.status}`);
-      }
-
-      const data: PredictionResult = await res.json();
-      setResult(data);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to connect to analysis server.";
-      setGeneralError(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-[#070b14] clinical-grid">
       {/* 1. Persistent Top Safety Banner */}
       <DisclaimerBanner variant="top" />
 
-      {/* 2. Clinical Header */}
-      <Header health={health} healthError={healthError} />
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8 space-y-8">
-        {/* Research Context Hero */}
-        <div className="bg-[#0b1224]/80 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl relative overflow-hidden backdrop-blur-sm">
-          <div className="max-w-3xl space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/70 border border-cyan-800 text-cyan-300 text-xs font-mono">
-              <BrainCircuit className="w-3.5 h-3.5" />
-              <span>Deep Learning Computer Vision Diagnostic Research</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 tracking-tight">
-              Brain Tumor MRI Saliency & Uncertainty Quantification
-            </h1>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              This system demonstrates trustworthy clinical AI through automated out-of-distribution (OOD) quality screening, 20-pass Monte Carlo Dropout epistemic uncertainty estimation, and Grad-CAM interpretability across four neuro-oncological categories (Glioma, Meningioma, Pituitary, Normal Scan).
-            </p>
-          </div>
-        </div>
-
-        {/* 3. Upload & Quality Screening Section */}
-        <UploadSection
-          onAnalyze={handleAnalyze}
-          isLoading={isLoading}
-          selectedFile={selectedFile}
-          onSelectFile={handleSelectFile}
-        />
-
-        {/* Diagnostic Loading State */}
-        {isLoading && (
-          <div className="w-full bg-[#0b1224] border border-cyan-800/40 rounded-xl p-8 shadow-2xl text-center space-y-4 animate-pulse">
-            <div className="inline-flex p-3 rounded-full bg-cyan-950 border border-cyan-700/50 text-cyan-300">
-              <Activity className="w-6 h-6 animate-spin" />
+      {/* 2. Navigation Header */}
+      <header className="border-b border-slate-800 bg-[#090f20]/90 backdrop-blur-md px-6 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-inner">
+              <Brain className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-100 font-mono">
-                Executing Diagnostic Pipeline
-              </h3>
-              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                Validating grayscale MRI quality • Running 20x stochastic MC-Dropout sampling passes • Computing gradient activation maps
-              </p>
-            </div>
-            <div className="max-w-xs mx-auto bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
-              <div className="h-full bg-gradient-to-r from-cyan-500 to-teal-400 animate-[pulse_1s_infinite] w-full" />
-            </div>
-          </div>
-        )}
-
-        {/* Quality Gate 422 Rejection Banner */}
-        {qualityGateError && (
-          <div className="w-full bg-amber-950/70 border-2 border-amber-500/60 rounded-xl p-5 shadow-xl flex items-start gap-4">
-            <div className="p-2 rounded-lg bg-amber-900/60 text-amber-300 shrink-0">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <div className="space-y-1.5 flex-1 text-left">
-              <h3 className="text-sm font-bold text-amber-200 uppercase font-mono tracking-wide">
-                Quality Gate Rejection (HTTP 422)
-              </h3>
-              <p className="text-xs md:text-sm text-amber-200/90 leading-relaxed">
-                {qualityGateError}
-              </p>
-              <p className="text-[11px] text-amber-300/80 font-mono pt-1">
-                Diagnostic Safety Requirement: The model strictly expects axial, sagittal, or coronal MRI brain slices with monochrome channel correlation and structured brain parenchyma histograms.
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-lg text-slate-100 tracking-tight">
+                  NeuroScan <span className="text-cyan-400 font-mono text-sm uppercase">AI</span>
+                </span>
+                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-800 text-cyan-300">
+                  Research Prototype
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Brain MRI Analysis & Calibrated Uncertainty Quantification
               </p>
             </div>
           </div>
-        )}
 
-        {/* General Connection Error */}
-        {generalError && (
-          <div className="w-full bg-rose-950/60 border border-rose-600/60 rounded-xl p-5 shadow-xl flex items-start gap-4">
-            <div className="p-2 rounded-lg bg-rose-900/60 text-rose-300 shrink-0">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <div className="space-y-1 flex-1 text-left">
-              <h3 className="text-sm font-bold text-rose-200 font-mono uppercase">
-                Inference Service Error
-              </h3>
-              <p className="text-xs md:text-sm text-rose-300/90 leading-relaxed">
-                {generalError}
+          <Link
+            href="/analyze"
+            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-semibold text-xs font-mono transition flex items-center gap-2 shadow-lg shadow-cyan-600/20"
+          >
+            <span>Analyze a Scan</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      </header>
+
+      {/* 3. Hero Section */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-12 space-y-16">
+        <section className="text-center space-y-6 max-w-3xl mx-auto pt-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/70 border border-cyan-800 text-cyan-300 text-xs font-mono">
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Computer Vision Oncology Research</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-100 tracking-tight leading-tight">
+            Trustworthy Brain MRI Analysis with{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-300">
+              Calibrated Uncertainty
+            </span>
+          </h1>
+
+          <p className="text-base text-slate-300 leading-relaxed max-w-2xl mx-auto">
+            NeuroScan AI evaluates brain MRI slices across four clinical categories. Unlike black-box neural networks, our pipeline validates scan authenticity, estimates statistical confidence variance, and highlights the anatomical evidence behind every prediction.
+          </p>
+
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/analyze"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition flex items-center justify-center gap-2 shadow-xl shadow-cyan-500/25 cursor-pointer"
+            >
+              <span>Analyze a Scan</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </section>
+
+        {/* 4. Four Categories Classified */}
+        <section className="space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-bold text-slate-100 tracking-tight">
+              Classified Tumor & Tissue Categories
+            </h2>
+            <p className="text-xs text-slate-400 max-w-lg mx-auto">
+              The model identifies specific intracranial lesion characteristics and structural patterns across four clinical classes.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Glioma */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-5 space-y-2 hover:border-cyan-500/40 transition">
+              <div className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 text-xs font-bold font-mono">
+                01
+              </div>
+              <h3 className="text-base font-semibold text-slate-100">Glioma</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Tumors arising from glial support cells in the central nervous system, varying from slow-growing lesions to aggressive infiltrating astrocytomas.
               </p>
-              <p className="text-xs text-rose-400 font-mono pt-1">
-                Ensure the FastAPI backend is running on http://localhost:8000.
+            </div>
+
+            {/* Meningioma */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-5 space-y-2 hover:border-cyan-500/40 transition">
+              <div className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 text-xs font-bold font-mono">
+                02
+              </div>
+              <h3 className="text-base font-semibold text-slate-100">Meningioma</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Typically slow-growing extra-axial tumors originating in the protective meningeal membranes that encase the brain and spinal cord.
+              </p>
+            </div>
+
+            {/* Pituitary Tumor */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-5 space-y-2 hover:border-cyan-500/40 transition">
+              <div className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 text-xs font-bold font-mono">
+                03
+              </div>
+              <h3 className="text-base font-semibold text-slate-100">Pituitary Tumor</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Abnormal growths situated within the sella turcica at the skull base, commonly affecting hormonal balance and adjacent optic pathways.
+              </p>
+            </div>
+
+            {/* No Tumor (Normal) */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-5 space-y-2 hover:border-cyan-500/40 transition">
+              <div className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 text-xs font-bold font-mono">
+                04
+              </div>
+              <h3 className="text-base font-semibold text-slate-100">No Tumor (Normal)</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                MRI slices with preserved neuroanatomy, intact parenchymal symmetry, and no detectable mass effect or abnormal focal lesions.
               </p>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* 4. Results Section */}
-        {result && !isLoading && (
-          <ResultsSection result={result} originalImageUrl={originalImageUrl} />
-        )}
+        {/* 5. Core Safety & Interpretability Pillars */}
+        <section className="space-y-6">
+          <div className="text-center space-y-2">
+            <h2 className="text-xl font-bold text-slate-100 tracking-tight">
+              Safety & Explainability Pillars
+            </h2>
+            <p className="text-xs text-slate-400 max-w-lg mx-auto">
+              How NeuroScan AI protects against out-of-distribution errors and explains its decisions.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {/* Quality Gate */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-6 flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 shrink-0">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-slate-100 font-mono">
+                  Automated Quality & OOD Gate
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Checks that uploaded files exhibit genuine monochrome MRI characteristics and structured tissue histograms, immediately rejecting non-scan photos or corrupted uploads.
+                </p>
+              </div>
+            </div>
+
+            {/* Uncertainty Quantification */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-6 flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 shrink-0">
+                <Activity className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-slate-100 font-mono">
+                  Calibrated MC-Dropout Uncertainty
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Performs 20 stochastic sampling passes with temperature scaling to measure predictive stability, highlighting ambiguous scans that require human specialist review.
+                </p>
+              </div>
+            </div>
+
+            {/* Grad-CAM Explainability */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-6 flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 shrink-0">
+                <Eye className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-slate-100 font-mono">
+                  Grad-CAM Visual Heatmaps
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Generates gradient-weighted visual saliency overlays revealing the exact anatomical regions and tissue structures driving the network’s classification.
+                </p>
+              </div>
+            </div>
+
+            {/* Severity Heuristic */}
+            <div className="bg-[#0b1224] border border-slate-800 rounded-xl p-6 flex items-start gap-4">
+              <div className="p-3 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-400 shrink-0">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-slate-100 font-mono">
+                  Severity & Tissue Extent Heuristic
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Estimates relative foreground tissue volume using Otsu threshold segmentation, categorizing extent into Low, Medium, or High as an initial screening heuristic.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 6. Call to Action Banner */}
+        <section className="bg-gradient-to-r from-cyan-950/60 via-[#0b1224] to-teal-950/60 border border-cyan-800/40 rounded-2xl p-8 text-center space-y-4 shadow-2xl">
+          <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
+            Ready to Evaluate a Scan?
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto">
+            Upload an axial, coronal, or sagittal MRI slice, or test the interactive pipeline immediately using one of our verified clinical presets.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/analyze"
+              className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-sm transition shadow-lg shadow-cyan-500/20 cursor-pointer"
+            >
+              <span>Launch Analysis Workstation</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </section>
       </main>
 
-      {/* 5. Persistent Footer Disclaimer */}
+      {/* 7. Persistent Footer Disclaimer */}
       <DisclaimerBanner variant="footer" />
     </div>
   );

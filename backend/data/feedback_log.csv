@@ -1,0 +1,3 @@
+prediction_id,timestamp,predicted_class,corrected_class,confidence,uncertainty,note
+faa49d7b-d53a-4ccf-b002-3313051aa49e,2026-09-13T16:15:25.535841+00:00,glioma,glioma,0.9194,0.1019,Verified biopsy-concordant glioma scan
+f0f3d8c7-3d93-4fac-9306-629144f96062,2026-09-13T16:18:16.508833+00:00,glioma,glioma,0.894,0.1416,Verified biopsy-concordant glioma scan

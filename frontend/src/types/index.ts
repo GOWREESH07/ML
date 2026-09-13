@@ -8,6 +8,8 @@ export interface TumorInfo {
 }
 
 export interface PredictionResult {
+  prediction_id?: string;
+  temperature?: number;
   predicted_class: "glioma" | "meningioma" | "notumor" | "pituitary" | string;
   confidence: number;
   uncertainty: number;
@@ -26,4 +28,14 @@ export interface BackendHealth {
   model_loaded: boolean;
   classes: string[];
   uncertainty_threshold: number;
+  temperature?: number;
+}
+
+export interface FeedbackPayload {
+  prediction_id: string;
+  predicted_class: string;
+  corrected_class: string;
+  confidence?: number;
+  uncertainty?: number;
+  note?: string;
 }

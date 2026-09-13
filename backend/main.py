@@ -22,7 +22,8 @@ from fastapi.responses import JSONResponse, FileResponse
 
 from backend.architecture import BrainTumorCNN
 from backend.quality_gate import validate_mri_image
-from backend.inference import analyze_mri, UNCERTAINTY_THRESHOLD
+from backend.inference import analyze_mri, UNCERTAINTY_THRESHOLD, get_temperature
+from backend.feedback import router as feedback_router
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "model.pth")
 INFO_PATH = os.path.join(os.path.dirname(__file__), "data", "tumor_info.json")
@@ -77,13 +78,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(feedback_router)
+
 @app.get("/health")
 async def health():
     return {
         "status": "healthy",
         "model_loaded": app_state["model"] is not None,
         "classes": app_state["classes"],
-        "uncertainty_threshold": UNCERTAINTY_THRESHOLD
+        "uncertainty_threshold": UNCERTAINTY_THRESHOLD,
+        "temperature": get_temperature()
     }
 
 @app.get("/samples")

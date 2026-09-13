@@ -1,0 +1,8 @@
+{
+  "temperature": 2.0914,
+  "pre_nll": 0.9546,
+  "post_nll": 0.5778,
+  "pre_ece": 0.128,
+  "post_ece": 0.0584,
+  "sample_count": 2414
+}

@@ -41,14 +41,32 @@ async def run_diagnostics():
             result = json.loads(resp.body.decode("utf-8"))
 
             print(f"\n  Sample File: {sample_path}")
+            print(f"  -> Prediction ID: {result.get('prediction_id')}")
+            print(f"  -> Temperature T: {result.get('temperature')}")
             print(f"  -> Predicted: {result['predicted_class']} (Expected ~ {expected_class})")
-            print(f"  -> Confidence: {result['confidence'] * 100:.1f}%")
+            print(f"  -> Calibrated Confidence: {result['confidence'] * 100:.1f}%")
             print(f"  -> MC Uncertainty: ±{result['uncertainty'] * 100:.1f}%")
             print(f"  -> Severity Extent: {result['severity_bucket']} (foreground {result['foreground_ratio'] * 100:.1f}%)")
             print(f"  -> Low Confidence Flag: {result['low_confidence_flag']}")
             print(f"  -> Heatmap Base64: {result['heatmap_base64'][:30]}... ({len(result['heatmap_base64'])} chars)")
             print(f"  -> Knowledge Base: {result['info']['name']}")
             print(f"  -> Disclaimer: {result['disclaimer']}")
+
+            # Test feedback logging on first sample
+            if expected_class == "glioma":
+                from backend.feedback import log_feedback, feedback_summary, FeedbackSubmission
+                sub = FeedbackSubmission(
+                    prediction_id=result['prediction_id'],
+                    predicted_class=result['predicted_class'],
+                    corrected_class="glioma",
+                    confidence=result['confidence'],
+                    uncertainty=result['uncertainty'],
+                    note="Verified biopsy-concordant glioma scan"
+                )
+                fb_res = await log_feedback(sub)
+                print(f"  -> [PASS] Feedback Logged: {fb_res['status']}")
+                summary = await feedback_summary()
+                print(f"  -> [PASS] Feedback Summary Total: {summary['total_feedback_entries']}")
 
         # 3. Test Quality / OOD Gate with synthetic color photo
         print("\n[TEST] Quality Gate (OOD Color Photo Rejection):")

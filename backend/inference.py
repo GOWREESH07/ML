@@ -2,6 +2,7 @@ import io
 import os
 import json
 import base64
+import uuid
 from typing import Dict, Any, Tuple
 import numpy as np
 from PIL import Image
@@ -15,8 +16,19 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-# Default placeholder threshold; should be calibrated on a held-out evaluation set
 UNCERTAINTY_THRESHOLD = 0.08
+TEMP_PATH = os.path.join(os.path.dirname(__file__), "models", "temperature.json")
+
+def get_temperature() -> float:
+    if os.path.exists(TEMP_PATH):
+        try:
+            with open(TEMP_PATH, "r") as f:
+                data = json.load(f)
+                t = float(data.get("temperature", 1.0))
+                return max(t, 0.01)
+        except Exception:
+            pass
+    return 1.0
 
 def compute_otsu_foreground_ratio(image: Image.Image) -> Tuple[float, str]:
     gray = np.array(image.convert("L"), dtype=np.uint8)
@@ -54,10 +66,16 @@ def compute_otsu_foreground_ratio(image: Image.Image) -> Tuple[float, str]:
         bucket = "high"
     return ratio, bucket
 
-def run_mc_dropout(model: nn.Module, tensor: torch.Tensor, n_passes: int = 20) -> Tuple[np.ndarray, np.ndarray]:
+def run_mc_dropout(
+    model: nn.Module,
+    tensor: torch.Tensor,
+    n_passes: int = 20,
+    temperature: float = 1.0
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Runs stochastic forward passes keeping only nn.Dropout in training mode,
     while BatchNorm remains in eval mode with fixed running statistics.
+    Applies temperature scaling: logits / T prior to softmax.
     """
     model.eval()
     for m in model.modules():
@@ -65,16 +83,20 @@ def run_mc_dropout(model: nn.Module, tensor: torch.Tensor, n_passes: int = 20) -
             m.train()
 
     passes = []
+    raw_passes = []
     with torch.no_grad():
         for _ in range(n_passes):
             logits = model(tensor)
-            probs = torch.softmax(logits, dim=1).squeeze(0).cpu().numpy()
+            raw_passes.append(logits.squeeze(0).cpu().numpy())
+            scaled_logits = logits / temperature
+            probs = torch.softmax(scaled_logits, dim=1).squeeze(0).cpu().numpy()
             passes.append(probs)
 
     passes_arr = np.array(passes)
+    raw_logits_mean = np.mean(np.array(raw_passes), axis=0)
     mean_probs = np.mean(passes_arr, axis=0)
     std_probs = np.std(passes_arr, axis=0)
-    return mean_probs, std_probs
+    return mean_probs, std_probs, raw_logits_mean
 
 def compute_gradcam(
     model: nn.Module,
@@ -82,10 +104,6 @@ def compute_gradcam(
     target_class_idx: int,
     orig_img: Image.Image
 ) -> str:
-    """
-    Computes Grad-CAM on the final conv layer of the last feature block,
-    overlays as a heatmap on the original scan, and returns a base64 PNG data URL.
-    """
     model.eval()
     target_layer = model.features[-1][3]
     activations = None
@@ -151,12 +169,18 @@ def analyze_mri(
     ])
     tensor = transform(image.convert("RGB")).unsqueeze(0)
 
-    # 1. MC-Dropout inference
-    mean_probs, std_probs = run_mc_dropout(model, tensor, n_passes=20)
+    # 1. Temperature-scaled MC-Dropout inference
+    temperature = get_temperature()
+    mean_probs, std_probs, raw_logits = run_mc_dropout(model, tensor, n_passes=20, temperature=temperature)
     pred_idx = int(np.argmax(mean_probs))
     pred_class = classes[pred_idx]
     confidence = float(mean_probs[pred_idx])
     uncertainty = float(std_probs[pred_idx])
+
+    # Check if confidence or uncertainty pinned
+    if confidence >= 0.999 or uncertainty <= 0.001:
+        print(f"[Inference Audit] Extreme confidence detected for {pred_class}. "
+              f"Raw mean logits: {np.round(raw_logits, 2)}, Temperature: {temperature:.4f}")
 
     # 2. Grad-CAM overlay
     heatmap_base64 = compute_gradcam(model, tensor, pred_idx, image)
@@ -182,10 +206,14 @@ def analyze_mri(
         "This is not a medical diagnosis or treatment recommendation. Consult a qualified neurologist or oncologist."
     )
 
+    pred_id = str(uuid.uuid4())
+
     return {
+        "prediction_id": pred_id,
         "predicted_class": pred_class,
         "confidence": round(confidence, 4),
         "uncertainty": round(uncertainty, 4),
+        "temperature": round(temperature, 4),
         "severity_bucket": severity_bucket,
         "foreground_ratio": round(fg_ratio, 4),
         "heatmap_base64": heatmap_base64,
