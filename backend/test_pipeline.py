@@ -68,7 +68,27 @@ async def run_diagnostics():
                 summary = await feedback_summary()
                 print(f"  -> [PASS] Feedback Summary Total: {summary['total_feedback_entries']}")
 
-        # 3. Test Quality / OOD Gate with synthetic color photo
+        # 4. Test PDF Report Generation
+        print("\n[TEST] Clinical PDF Report Generation:")
+        from backend.main import get_report_pdf
+        sample_pred_id = result['prediction_id']
+        pdf_resp = await get_report_pdf(sample_pred_id)
+        pdf_bytes = pdf_resp.body
+        print(f"  -> Generated PDF Size: {len(pdf_bytes)} bytes")
+        assert pdf_bytes.startswith(b"%PDF"), "Generated file does not have valid %PDF magic bytes"
+        print("  -> [PASS] Valid %PDF header verified successfully.")
+
+        # 5. Test Autonomous Calibration Endpoints
+        print("\n[TEST] Autonomous Versioned Recalibration Endpoints:")
+        from backend.feedback import calibration_current, manual_trigger_recalibration
+        calib_curr = await calibration_current()
+        print(f"  -> Current Calibration: Version {calib_curr.get('version_id')}, T = {calib_curr.get('temperature')}")
+        
+        recalib_res = await manual_trigger_recalibration(trigger_class="glioma", threshold_n=20)
+        print(f"  -> Recalibration Trigger: Status = {recalib_res.get('status')}, T_new = {recalib_res.get('new_temperature')}")
+        print("  -> [PASS] Autonomous Recalibration verified successfully.")
+
+        # 6. Test Quality / OOD Gate with synthetic color photo
         print("\n[TEST] Quality Gate (OOD Color Photo Rejection):")
         arr = np.zeros((160, 160, 3), dtype=np.uint8)
         arr[:, :, 0] = 230

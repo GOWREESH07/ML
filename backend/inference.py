@@ -3,9 +3,9 @@ import os
 import json
 import base64
 import uuid
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional, List
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -72,11 +72,6 @@ def run_mc_dropout(
     n_passes: int = 20,
     temperature: float = 1.0
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Runs stochastic forward passes keeping only nn.Dropout in training mode,
-    while BatchNorm remains in eval mode with fixed running statistics.
-    Applies temperature scaling: logits / T prior to softmax.
-    """
     model.eval()
     for m in model.modules():
         if isinstance(m, nn.Dropout):
@@ -98,12 +93,12 @@ def run_mc_dropout(
     std_probs = np.std(passes_arr, axis=0)
     return mean_probs, std_probs, raw_logits_mean
 
-def compute_gradcam(
+def compute_gradcam_and_box(
     model: nn.Module,
     tensor: torch.Tensor,
     target_class_idx: int,
     orig_img: Image.Image
-) -> str:
+) -> Tuple[str, Optional[Dict[str, Any]], str]:
     model.eval()
     target_layer = model.features[-1][3]
     activations = None
@@ -151,10 +146,41 @@ def compute_gradcam(
     blended = (0.50 * orig_arr + 0.50 * heatmap_rgb).astype(np.uint8)
     blended_pil = Image.fromarray(blended)
 
-    buf = io.BytesIO()
-    blended_pil.save(buf, format="PNG")
-    b64_str = base64.b64encode(buf.getvalue()).decode("utf-8")
-    return f"data:image/png;base64,{b64_str}"
+    # Compute bounding box on focal activation region
+    peak_thresh = max(0.35, float(cam_norm.max()) * 0.50)
+    coords = np.argwhere(cam_norm >= peak_thresh)
+    bbox = None
+    blended_boxed = blended_pil.copy()
+
+    if len(coords) >= 15:
+        ymin, xmin = coords.min(axis=0)
+        ymax, xmax = coords.max(axis=0)
+        bbox = {
+            "ymin": int(ymin),
+            "xmin": int(xmin),
+            "ymax": int(ymax),
+            "xmax": int(xmax),
+            "width": int(xmax - xmin),
+            "height": int(ymax - ymin),
+            "normalized": [
+                round(float(ymin) / orig_h, 4),
+                round(float(xmin) / orig_w, 4),
+                round(float(ymax) / orig_h, 4),
+                round(float(xmax) / orig_w, 4),
+            ]
+        }
+        draw = ImageDraw.Draw(blended_boxed)
+        draw.rectangle([xmin, ymin, xmax, ymax], outline=(6, 182, 212), width=3)
+
+    buf_plain = io.BytesIO()
+    blended_pil.save(buf_plain, format="PNG")
+    plain_b64 = f"data:image/png;base64,{base64.b64encode(buf_plain.getvalue()).decode('utf-8')}"
+
+    buf_boxed = io.BytesIO()
+    blended_boxed.save(buf_boxed, format="PNG")
+    boxed_b64 = f"data:image/png;base64,{base64.b64encode(buf_boxed.getvalue()).decode('utf-8')}"
+
+    return plain_b64, bbox, boxed_b64
 
 def analyze_mri(
     image: Image.Image,
@@ -177,13 +203,12 @@ def analyze_mri(
     confidence = float(mean_probs[pred_idx])
     uncertainty = float(std_probs[pred_idx])
 
-    # Check if confidence or uncertainty pinned
     if confidence >= 0.999 or uncertainty <= 0.001:
         print(f"[Inference Audit] Extreme confidence detected for {pred_class}. "
               f"Raw mean logits: {np.round(raw_logits, 2)}, Temperature: {temperature:.4f}")
 
-    # 2. Grad-CAM overlay
-    heatmap_base64 = compute_gradcam(model, tensor, pred_idx, image)
+    # 2. Grad-CAM overlay & Bounding Box
+    heatmap_base64, bbox, heatmap_boxed_base64 = compute_gradcam_and_box(model, tensor, pred_idx, image)
 
     # 3. Otsu foreground ratio & severity heuristic
     fg_ratio, severity_bucket = compute_otsu_foreground_ratio(image)
@@ -208,6 +233,11 @@ def analyze_mri(
 
     pred_id = str(uuid.uuid4())
 
+    # Encode original image to base64 for report persistence
+    buf_orig = io.BytesIO()
+    image.convert("RGB").save(buf_orig, format="PNG")
+    orig_b64 = f"data:image/png;base64,{base64.b64encode(buf_orig.getvalue()).decode('utf-8')}"
+
     return {
         "prediction_id": pred_id,
         "predicted_class": pred_class,
@@ -217,9 +247,56 @@ def analyze_mri(
         "severity_bucket": severity_bucket,
         "foreground_ratio": round(fg_ratio, 4),
         "heatmap_base64": heatmap_base64,
+        "heatmap_boxed_base64": heatmap_boxed_base64,
+        "bounding_box": bbox,
+        "original_image_base64": orig_b64,
         "info": class_info,
         "disclaimer": disclaimer_text,
         "low_confidence_flag": low_confidence_flag,
         "class_probabilities": {cls_name: round(float(mean_probs[i]), 4) for i, cls_name in enumerate(classes)},
         "class_uncertainties": {cls_name: round(float(std_probs[i]), 4) for i, cls_name in enumerate(classes)}
+    }
+
+def analyze_series(
+    images: List[Image.Image],
+    model: nn.Module,
+    classes: list,
+    knowledge_base: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Multi-slice MRI series analysis aggregating slice-level evidence into volumetric findings.
+    """
+    slice_results = []
+    class_prob_sums = {c: 0.0 for c in classes}
+    class_unc_sums = {c: 0.0 for c in classes}
+
+    for idx, img in enumerate(images):
+        single = analyze_mri(img, model, classes, knowledge_base)
+        single["slice_index"] = idx + 1
+        slice_results.append(single)
+        for c in classes:
+            class_prob_sums[c] += single["class_probabilities"][c]
+            class_unc_sums[c] += single["class_uncertainties"][c]
+
+    n = max(1, len(images))
+    mean_probs = {c: round(class_prob_sums[c] / n, 4) for c in classes}
+    mean_uncs = {c: round(class_unc_sums[c] / n, 4) for c in classes}
+
+    dom_class = max(mean_probs.items(), key=lambda x: x[1])[0]
+    dom_conf = mean_probs[dom_class]
+    dom_unc = mean_uncs[dom_class]
+
+    series_id = str(uuid.uuid4())
+
+    return {
+        "series_id": series_id,
+        "series_mode": True,
+        "slices_count": len(images),
+        "dominant_class": dom_class,
+        "mean_confidence": dom_conf,
+        "aggregate_uncertainty": dom_unc,
+        "class_probabilities": mean_probs,
+        "class_uncertainties": mean_uncs,
+        "slices": slice_results,
+        "disclaimer": "This is not a medical diagnosis or treatment recommendation. Consult a qualified neurologist or oncologist."
     }

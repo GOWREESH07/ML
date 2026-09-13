@@ -38,6 +38,8 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
   const [modelCardOpen, setModelCardOpen] = useState(false);
   const [blendOpacity, setBlendOpacity] = useState<number>(0.5);
   const [activeViewMode, setActiveViewMode] = useState<"side-by-side" | "interactive-blend">("side-by-side");
+  const [showBoundingBox, setShowBoundingBox] = useState<boolean>(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
 
   // Human-in-the-loop feedback state
   const [feedbackChoice, setFeedbackChoice] = useState<"correct" | "incorrect" | null>(null);
@@ -157,6 +159,47 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      let blob: Blob | null = null;
+      if (result.prediction_id && result.prediction_id !== "unassigned") {
+        const res = await fetch(`${apiBase}/report/${result.prediction_id}`);
+        if (res.ok) {
+          blob = await res.blob();
+        }
+      }
+      if (!blob) {
+        const postRes = await fetch(`${apiBase}/report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(result),
+        });
+        if (postRes.ok) {
+          blob = await postRes.blob();
+        } else {
+          throw new Error("Failed to generate PDF report from server.");
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `neuroscan-clinical-report-${result.predicted_class}-${result.prediction_id?.slice(0, 8) || "scan"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PDF Download error:", err);
+      alert("Unable to generate PDF report. Please verify backend is active.");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const activeHeatmap =
+    showBoundingBox && result.heatmap_boxed_base64
+      ? result.heatmap_boxed_base64
+      : result.heatmap_base64;
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-500">
@@ -290,14 +333,46 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
 
           {/* View mode & Export buttons */}
           <div className="flex flex-wrap items-center gap-3">
+            {/* Download Clinical PDF */}
+            <button
+              type="button"
+              disabled={isDownloadingPdf}
+              onClick={handleDownloadPdf}
+              className="px-3 py-1 text-xs rounded-md bg-cyan-950 border border-cyan-700/60 hover:border-cyan-400 text-cyan-200 hover:text-white transition flex items-center gap-1.5 font-mono cursor-pointer disabled:opacity-50"
+            >
+              {isDownloadingPdf ? (
+                <Activity className="w-3.5 h-3.5 text-cyan-300 animate-spin" />
+              ) : (
+                <FileText className="w-3.5 h-3.5 text-cyan-300" />
+              )}
+              {isDownloadingPdf ? "Generating PDF..." : "Download Clinical PDF"}
+            </button>
+
+            {/* Download Raw JSON */}
             <button
               type="button"
               onClick={handleDownloadReport}
               className="px-3 py-1 text-xs rounded-md bg-slate-900 border border-slate-700 hover:border-cyan-500/60 text-slate-300 hover:text-white transition flex items-center gap-1.5 font-mono cursor-pointer"
             >
               <Download className="w-3.5 h-3.5 text-cyan-400" />
-              Download Report (JSON)
+              JSON
             </button>
+
+            {/* ROI Bounding Box Toggle */}
+            {result.bounding_box && (
+              <button
+                type="button"
+                onClick={() => setShowBoundingBox(!showBoundingBox)}
+                className={`px-3 py-1 text-xs rounded-md border transition flex items-center gap-1.5 font-mono cursor-pointer ${
+                  showBoundingBox
+                    ? "bg-amber-950/80 border-amber-500 text-amber-300"
+                    : "bg-slate-900 border-slate-700 hover:border-amber-500/50 text-slate-300"
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                {showBoundingBox ? "ROI Box Active" : "Show ROI Box"}
+              </button>
+            )}
 
             <div className="flex rounded-lg bg-slate-900 border border-slate-800 p-0.5">
               <button
@@ -354,18 +429,22 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
             <div className="flex flex-col items-center">
               <div className="w-full text-xs font-mono text-slate-400 mb-2 flex items-center justify-between">
                 <span className="text-cyan-400">Grad-CAM Saliency Overlay</span>
-                <span className="text-cyan-400 font-bold">Jet Colormap (50% blend)</span>
+                <span className="text-cyan-400 font-bold">
+                  {showBoundingBox ? "Jet Colormap + ROI Box" : "Jet Colormap (50% blend)"}
+                </span>
               </div>
               <div className="w-full aspect-square max-w-[420px] bg-black rounded-xl border border-cyan-950 p-2 flex items-center justify-center overflow-hidden shadow-inner relative group">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={result.heatmap_base64}
+                  src={activeHeatmap}
                   alt="Grad-CAM Heatmap Overlay"
                   className="max-h-full max-w-full object-contain rounded-lg"
                 />
               </div>
               <span className="text-[11px] text-cyan-400 mt-2 font-mono">
-                Red/Yellow: High Attention • Blue/Cyan: Background Baseline
+                {showBoundingBox
+                  ? "Amber Rectangle: Saliency Focus ROI"
+                  : "Red/Yellow: High Attention • Blue/Cyan: Background Baseline"}
               </span>
             </div>
           </div>
@@ -402,7 +481,7 @@ export const ResultsSection: React.FC<ResultsSectionProps> = ({
               )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={result.heatmap_base64}
+                src={activeHeatmap}
                 alt="Heatmap Layer"
                 style={{ opacity: blendOpacity }}
                 className="absolute inset-0 w-full h-full object-contain p-2 transition-opacity duration-150"

@@ -1,8 +1,6 @@
 {
-  "temperature": 2.0914,
-  "pre_nll": 0.9546,
-  "post_nll": 0.5778,
-  "pre_ece": 0.128,
-  "post_ece": 0.0584,
-  "sample_count": 2414
+  "current_version": "v1.1",
+  "temperature": 2.0846,
+  "last_recalibrated": "2026-09-13T16:33:22.241788+00:00",
+  "version_file": "temperature_v1.1.json"
 }

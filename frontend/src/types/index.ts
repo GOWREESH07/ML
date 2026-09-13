@@ -16,6 +16,9 @@ export interface PredictionResult {
   severity_bucket: "low" | "medium" | "high";
   foreground_ratio: number;
   heatmap_base64: string;
+  heatmap_boxed_base64?: string;
+  bounding_box?: { ymin: number; xmin: number; ymax: number; xmax: number } | null;
+  original_image_base64?: string;
   info: TumorInfo;
   disclaimer: string;
   low_confidence_flag: boolean;

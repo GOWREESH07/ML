@@ -1,0 +1,8 @@
+{
+  "version_id": "v1.1",
+  "temperature": 2.0846,
+  "old_temperature": 2.0914,
+  "trigger_class": "glioma",
+  "corrections_used": 20,
+  "timestamp": "2026-09-13T16:33:22.241788+00:00"
+}

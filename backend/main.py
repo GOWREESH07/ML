@@ -3,16 +3,9 @@ import os
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib_cache")
 import json
 import base64
-from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional
-
-from PIL import Image
-import torch
-from fastapi import FastAPI, Request, HTTPException, Response
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
 import re
-from typing import Dict, Any, Optional
+from contextlib import asynccontextmanager
+from typing import Dict, Any, Optional, List
 
 from PIL import Image
 import torch
@@ -22,12 +15,15 @@ from fastapi.responses import JSONResponse, FileResponse
 
 from backend.architecture import BrainTumorCNN
 from backend.quality_gate import validate_mri_image
-from backend.inference import analyze_mri, UNCERTAINTY_THRESHOLD, get_temperature
+from backend.inference import analyze_mri, analyze_series, UNCERTAINTY_THRESHOLD, get_temperature
 from backend.feedback import router as feedback_router
+from backend.report import generate_pdf_report
 
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "model.pth")
 INFO_PATH = os.path.join(os.path.dirname(__file__), "data", "tumor_info.json")
 SAMPLES_DIR = os.path.join(os.path.dirname(__file__), "samples")
+PREDICTIONS_DIR = os.path.join(os.path.dirname(__file__), "data", "predictions")
+os.makedirs(PREDICTIONS_DIR, exist_ok=True)
 
 app_state: Dict[str, Any] = {
     "model": None,
@@ -35,14 +31,14 @@ app_state: Dict[str, Any] = {
     "knowledge_base": {}
 }
 
+PREDICTION_CACHE: Dict[str, Dict[str, Any]] = {}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load knowledge base
     if os.path.exists(INFO_PATH):
         with open(INFO_PATH, "r", encoding="utf-8") as f:
             app_state["knowledge_base"] = json.load(f)
 
-    # Load model checkpoint
     if not os.path.exists(MODEL_PATH):
         raise RuntimeError(f"Model checkpoint not found at {MODEL_PATH}")
 
@@ -65,8 +61,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Brain Tumor MRI Analysis API",
-    description="Educational and research MRI analysis service with MC-Dropout uncertainty & Grad-CAM interpretability.",
-    version="1.0.0",
+    description="Clinical research MRI analysis service with MC-Dropout uncertainty, Grad-CAM interpretability, and autonomous recalibration.",
+    version="1.1.0",
     lifespan=lifespan
 )
 
@@ -119,7 +115,6 @@ async def extract_image_bytes(request: Request) -> bytes:
     if not raw_body:
         raise HTTPException(status_code=400, detail="Empty request body. Please upload an MRI image.")
 
-    # Check for multipart/form-data
     if "multipart/form-data" in content_type:
         match = re.search(r'boundary=([^;]+)', content_type, re.IGNORECASE)
         if match:
@@ -134,9 +129,8 @@ async def extract_image_bytes(request: Request) -> bytes:
                             data = data[:-2].rstrip(b'\r\n')
                         if data:
                             return data
-        raise HTTPException(status_code=400, detail="No file attached in multipart form-data under 'file' or 'image'.")
+        raise HTTPException(status_code=400, detail="No file attached in multipart form-data.")
 
-    # Check for JSON payload with base64 string
     if "application/json" in content_type:
         try:
             payload = json.loads(raw_body)
@@ -149,8 +143,30 @@ async def extract_image_bytes(request: Request) -> bytes:
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid JSON base64 payload: {str(e)}")
 
-    # Direct raw image binary upload (image/jpeg, image/png, application/octet-stream)
     return raw_body
+
+def save_prediction(prediction_id: str, data: Dict[str, Any]):
+    PREDICTION_CACHE[prediction_id] = data
+    cache_path = os.path.join(PREDICTIONS_DIR, f"{prediction_id}.json")
+    try:
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception as e:
+        print(f"Warning: could not save prediction cache: {e}")
+
+def load_prediction(prediction_id: str) -> Optional[Dict[str, Any]]:
+    if prediction_id in PREDICTION_CACHE:
+        return PREDICTION_CACHE[prediction_id]
+    cache_path = os.path.join(PREDICTIONS_DIR, f"{prediction_id}.json")
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                PREDICTION_CACHE[prediction_id] = data
+                return data
+        except Exception:
+            pass
+    return None
 
 @app.post("/predict")
 async def predict(request: Request):
@@ -169,7 +185,6 @@ async def predict(request: Request):
     if not is_valid:
         raise HTTPException(status_code=422, detail=reject_reason)
 
-    # Run full MC-Dropout + Grad-CAM + Otsu severity analysis
     result = analyze_mri(
         image=image,
         model=app_state["model"],
@@ -177,6 +192,86 @@ async def predict(request: Request):
         knowledge_base=app_state["knowledge_base"],
         uncertainty_threshold=UNCERTAINTY_THRESHOLD
     )
+    save_prediction(result["prediction_id"], result)
+    return JSONResponse(content=result)
+
+@app.get("/report/{prediction_id}")
+async def get_report_pdf(prediction_id: str):
+    data = load_prediction(prediction_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Prediction with ID {prediction_id} not found in cache.")
+
+    try:
+        pdf_bytes = generate_pdf_report(data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF report: {str(e)}")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="NeuroScan_Report_{prediction_id[:8]}.pdf"'
+        }
+    )
+
+@app.post("/report")
+async def generate_report_from_payload(payload: Dict[str, Any]):
+    try:
+        pdf_bytes = generate_pdf_report(payload)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF report from payload: {str(e)}")
+
+    pred_id = payload.get("prediction_id", "scan")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="NeuroScan_Report_{pred_id[:8]}.pdf"'
+        }
+    )
+
+@app.post("/predict/series")
+async def predict_series(request: Request):
+    if app_state["model"] is None:
+        raise HTTPException(status_code=503, detail="Model is not initialized.")
+
+    content_type = request.headers.get("content-type", "").lower()
+    raw_body = await request.body()
+    if not raw_body:
+        raise HTTPException(status_code=400, detail="Empty request body.")
+
+    images: List[Image.Image] = []
+
+    if "application/json" in content_type:
+        try:
+            payload = json.loads(raw_body)
+            b64_list = payload.get("images", [])
+            for b64_str in b64_list:
+                if "," in b64_str:
+                    b64_str = b64_str.split(",", 1)[1]
+                data = base64.b64decode(b64_str)
+                img = Image.open(io.BytesIO(data))
+                img.load()
+                images.append(img)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid JSON series payload: {str(e)}")
+    else:
+        # Fallback to single image if multipart
+        single_bytes = await extract_image_bytes(request)
+        img = Image.open(io.BytesIO(single_bytes))
+        img.load()
+        images.append(img)
+
+    if not images:
+        raise HTTPException(status_code=400, detail="No valid images provided in series.")
+
+    # Quality gate on each slice
+    for idx, img in enumerate(images):
+        ok, reason = validate_mri_image(img)
+        if not ok:
+            raise HTTPException(status_code=422, detail=f"Slice {idx + 1} rejected: {reason}")
+
+    result = analyze_series(images, app_state["model"], app_state["classes"], app_state["knowledge_base"])
     return JSONResponse(content=result)
 
 if __name__ == "__main__":

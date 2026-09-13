@@ -1,3 +1,8 @@
 prediction_id,timestamp,predicted_class,corrected_class,confidence,uncertainty,note
 faa49d7b-d53a-4ccf-b002-3313051aa49e,2026-09-13T16:15:25.535841+00:00,glioma,glioma,0.9194,0.1019,Verified biopsy-concordant glioma scan
 f0f3d8c7-3d93-4fac-9306-629144f96062,2026-09-13T16:18:16.508833+00:00,glioma,glioma,0.894,0.1416,Verified biopsy-concordant glioma scan
+d4903264-1699-4bb0-96a8-e01c05650aa5,2026-09-13T16:22:53.599580+00:00,meningioma,meningioma,0.9654,0.0696,Confirmed concordant by reviewer
+b55f2766-ffdb-402c-a5f6-bfe90ff814aa,2026-09-13T16:32:13.410687+00:00,glioma,glioma,0.8869,0.2072,Verified biopsy-concordant glioma scan
+436c9b3e-c143-4997-b8e9-b950cfa34a36,2026-09-13T16:32:36.298034+00:00,glioma,glioma,0.9397,0.0519,Verified biopsy-concordant glioma scan
+f6660d4c-57e4-4083-ba82-1ba6a94b4397,2026-09-13T16:32:59.011624+00:00,glioma,glioma,0.9378,0.1133,Verified biopsy-concordant glioma scan
+6d5e98a0-2869-4fd0-bb2a-e2823a9d5291,2026-09-13T16:33:19.305451+00:00,glioma,glioma,0.9209,0.0748,Verified biopsy-concordant glioma scan

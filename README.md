@@ -252,3 +252,54 @@ Returns aggregate audit counts to evaluate model retraining priorities:
 ### 2. Epistemic Uncertainty (MC-Dropout)
 - Runs **20 stochastic passes** with dropout layers set to training mode while BatchNorm remains in evaluation mode (`model.eval()`).
 - The low-confidence threshold (`UNCERTAINTY_THRESHOLD = 0.08`) flags scans with elevated sampling variance.
+
+---
+
+## Autonomous Versioned Recalibration Engine (Patentability & Technical Architecture)
+
+### 1. Innovation Overview
+Standard clinical machine learning models suffer from fixed calibration degradation as real-world clinical distributions shift or as specific misclassifications accumulate. The **NeuroScan Autonomous Versioned Recalibration Engine** introduces an automated closed-loop mechanism that dynamically re-optimizes the confidence temperature scalar $T$ without altering the underlying frozen neural network weights $\mathbf{W}$.
+
+### 2. Mathematical Formulation & Trigger Mechanics
+1. **Trigger Condition**:
+   Let $C_k$ be the count of clinical corrections submitted by radiologists for target class $k \in \{\text{glioma}, \text{meningioma}, \text{notumor}, \text{pituitary}\}$ since the last recalibration epoch. Recalibration automatically fires when:
+   $$\max_{k} C_k \ge N \quad (\text{Default } N = 20)$$
+
+2. **Optimization Objective**:
+   The engine optimizes $T > 0$ by minimizing the penalized Negative Log-Likelihood (NLL) across the validation logit distribution $\mathcal{Z}_{\text{test}}$ augmented with clinical correction priors:
+   $$\mathcal{L}(T) = -\frac{1}{M} \sum_{m=1}^{M} \log \left( \frac{\exp(z_{m, y_m} / T)}{\sum_{j=1}^{K} \exp(z_{m, j} / T)} \right) + \lambda (T - T_{\text{baseline}})^2$$
+   Optimized via gradient descent (`torch.optim.LBFGS` / Adam) over the precomputed test logits tensor $(2414, 4)$, completing in **< 0.1 seconds**.
+
+3. **Immutable Versioning & Audit Trail**:
+   - Each recalibration increments the version identifier (e.g., `v1.0` $\rightarrow$ `v1.1`).
+   - The fitted configuration is permanently archived to `backend/models/versions/temperature_{version_id}.json`.
+   - The operational pointer `backend/models/temperature.json` is updated atomically.
+   - An immutable audit trail row is appended to `backend/data/calibration_history.csv`:
+     `[version_id, timestamp_utc, trigger_class, corrections_count, old_temp, new_temp, correction_uuids]`
+
+### 3. Recalibration Endpoints
+- `GET /calibration/current`: Returns the active version, $T$ value, timestamp, and pending correction counters.
+- `GET /calibration/history`: Returns full historical log of all versioned recalibration events.
+- `POST /calibration/trigger`: Demonstration endpoint to trigger a versioned recalibration pass on demand.
+
+---
+
+## Clinical PDF Diagnostic Report Generation
+
+The backend includes an automated clinical documentation generator built with ReportLab (`backend/report.py`):
+- **Endpoint**: `GET /report/{prediction_id}` (or `POST /report` with payload).
+- **Features**:
+  - Running clinical header with institutional styling and unique document UUID.
+  - Side-by-side presentation of the native anatomical MRI slice and the Grad-CAM saliency overlay (with ROI bounding box).
+  - Quantitative classification table with temperature-calibrated confidence and epistemic MC-Dropout uncertainty bounds.
+  - Class-by-class probability breakdown table.
+  - Otsu foreground tissue extent heuristic.
+  - Prominent non-prescriptive medical disclaimers and radiologist signature block.
+
+---
+
+## Multi-Slice MRI Series Evaluation
+
+For clinical volumetric acquisition series (multiple slices per study):
+- **Endpoint**: `POST /predict/series` accepts a sequence of image slices via JSON base64 list or multipart upload.
+- Evaluates individual slice probabilities, computes study-wide consensus, and identifies the maximum-saliency index slice.
